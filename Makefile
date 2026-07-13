@@ -6,14 +6,17 @@ STUNAME = 陈天意
 TRACER = tracer-ysyx
 GITFLAGS = -q --author='$(TRACER) <tracer@ysyx.org>' --no-verify --allow-empty
 
-YSYX_HOME = $(NEMU_HOME)/..
-WORK_BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
-WORK_INDEX = $(YSYX_HOME)/.git/index.$(WORK_BRANCH)
+YSYX_HOME     = $(NEMU_HOME)/..
+WORK_BRANCH   = $(shell git symbolic-ref -q --short HEAD 2>/dev/null)
+WORK_HEAD     = $(shell git rev-parse --verify HEAD 2>/dev/null)
+WORK_REF      = $(if $(WORK_BRANCH),$(WORK_BRANCH),$(WORK_HEAD))
+WORK_KEY      = $(shell printf '%s' '$(if $(WORK_BRANCH),b:$(WORK_BRANCH),h:$(WORK_HEAD))' | git hash-object --stdin)
+WORK_INDEX    = $(YSYX_HOME)/.git/index.$(WORK_KEY)
 TRACER_BRANCH = $(TRACER)
 
 LOCK_DIR = $(YSYX_HOME)/.git/
 
-# prototype: git_soft_checkout(branch)
+# prototype: git_soft_checkout(ref)
 define git_soft_checkout
 	git checkout --detach -q && git reset --soft $(1) -q -- && git checkout $(1) -q --
 endef
@@ -32,7 +35,7 @@ endef
 	-@git add . -A --ignore-errors                                       `# add files to commit`
 	-@(echo "> $(MSG)" && echo $(STUID) $(STUNAME) && uname -a && uptime `# generate commit msg`) \
 	                | git commit -F - $(GITFLAGS)                        `# commit changes in tracer branch`
-	-@$(call git_soft_checkout, $(WORK_BRANCH))                          `# switch to work branch`
+	-@$(call git_soft_checkout, $(WORK_REF))                             `# switch to work ref`
 	-@mv $(WORK_INDEX) .git/index                                        `# restore git index`
 
 .clean_index:
